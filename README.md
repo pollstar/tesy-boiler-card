@@ -2,11 +2,11 @@
 
 A thermostat card for Tesy water heaters in Home Assistant: a dial with the water temperature and the active target, operation modes, Boost and power, and dialogs for the weekly programs (P1–P3) and for energy and diagnostics.
 
-<img src="docs/card.png" alt="Tesy boiler card" width="420">
+<img src="https://raw.githubusercontent.com/pollstar/tesy-boiler-card/main/docs/card.png" alt="Tesy boiler card" width="420">
 
 ## Requirements
 
-- The [Tesy integration](https://github.com/krasnoukhov/homeassistant-tesy) with weekly program support. The card reads the programs and writes them through its `tesy.set_schedule` action. That support is under review upstream ([#45](https://github.com/krasnoukhov/homeassistant-tesy/pull/45), [#46](https://github.com/krasnoukhov/homeassistant-tesy/pull/46)); until it is released, it is in the fork [pollstar/homeassistant-tesy](https://github.com/pollstar/homeassistant-tesy).
+- The [Tesy integration](https://github.com/krasnoukhov/homeassistant-tesy) with weekly program support. The card reads the programs and writes them through its `tesy.set_schedule` action. That support is merged ([#45](https://github.com/krasnoukhov/homeassistant-tesy/pull/45), [#46](https://github.com/krasnoukhov/homeassistant-tesy/pull/46)) and comes with the first release after 1.6.1; until then it is in the fork [pollstar/homeassistant-tesy](https://github.com/pollstar/homeassistant-tesy).
 - A heater with weekly programs enabled in that integration. So far that is the **ModEco 2** (id 2004). On another model the card shows a notice instead of the controls; use the standard thermostat card there.
 - Home Assistant 2024.8 or newer.
 
@@ -51,7 +51,7 @@ Related entities (Boost switch, energy and diagnostic sensors, clock sensor, tim
 
 The calendar button opens the weekly programs P1–P3. Each cell is one hour of one day, by the heater's clock.
 
-<img src="docs/schedule.png" alt="Weekly programs dialog: 7×24 grid" width="720">
+<img src="https://raw.githubusercontent.com/pollstar/tesy-boiler-card/main/docs/schedule.png" alt="Weekly programs dialog: 7×24 grid" width="720">
 
 - **Program tabs** P1–P3; the badge shows which program the heater runs now, and a frame marks the current heater hour.
 - **Brush**: pick a temperature (15–75 °C, step 1) or ❄ *Off* (heating off for that hour, stored as 14 °C on the heater), then tap cells to paint them. Empty cells have no entry.
@@ -60,7 +60,7 @@ The calendar button opens the weekly programs P1–P3. Each cell is one hour of 
 
 On phones and portrait screens (narrower than 720 px) the same editor works day by day:
 
-<img src="docs/schedule-phone.png" alt="Weekly programs on a phone: one day at a time" width="300">
+<img src="https://raw.githubusercontent.com/pollstar/tesy-boiler-card/main/docs/schedule-phone.png" alt="Weekly programs on a phone: one day at a time" width="300">
 
 A mini-map of the week sits on top, then the day buttons and the 24 hours of the selected day as 4×6 tiles. The brush and *Copy &lt;day&gt; to* work as on the wide grid.
 
@@ -68,7 +68,7 @@ A mini-map of the week sits on top, then the day buttons and the 24 hours of the
 
 The chart button opens energy and diagnostics.
 
-<img src="docs/statistics.png" alt="Energy and diagnostics dialog" width="420">
+<img src="https://raw.githubusercontent.com/pollstar/tesy-boiler-card/main/docs/statistics.png" alt="Energy and diagnostics dialog" width="420">
 
 - **Energy**: total consumption and the resettable counter (since its last reset).
 - **Errors**: current error code with a description (E01/E02 lower sensor open/short, E03/E04 upper sensor open/short).
