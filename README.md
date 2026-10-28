@@ -85,4 +85,11 @@ node --test tests/card.test.mjs
 
 ## License
 
-MIT
+[PolyForm Noncommercial License 1.0.0](LICENSE.md) — free for personal, hobby,
+research and other noncommercial use; commercial use is not permitted.
+For commercial licensing, contact the author.
+
+Version 1.0.0 was released under the MIT License; later versions are under
+PolyForm Noncommercial 1.0.0.
+
+Required Notice: Copyright 2026 Pavel Starovoitov (https://github.com/pollstar)
