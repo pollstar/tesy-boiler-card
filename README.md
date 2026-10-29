@@ -7,7 +7,7 @@ A thermostat card for Tesy water heaters in Home Assistant: a dial with the wate
 ## Requirements
 
 - The [Tesy integration](https://github.com/krasnoukhov/homeassistant-tesy) with weekly program support. The card reads the programs and writes them through its `tesy.set_schedule` action. That support is merged ([#45](https://github.com/krasnoukhov/homeassistant-tesy/pull/45), [#46](https://github.com/krasnoukhov/homeassistant-tesy/pull/46)) and comes with the first release after 1.6.1; until then it is in the fork [pollstar/homeassistant-tesy](https://github.com/pollstar/homeassistant-tesy).
-- A heater with weekly programs enabled in that integration. So far that is the **ModEco 2** (id 2004). On another model the card shows a notice instead of the controls; use the standard thermostat card there.
+- A heater with weekly programs enabled in that integration, so far the **ModEco 2** (id 2004), or a shower model, the **BelliSlimo** (id 2002) or **BelliSlimo Lite** (id 2005), which has a *Target showers* number in the integration (1.7.0 or newer). On another model the card shows a notice instead of the controls; use the standard thermostat card there.
 - Home Assistant 2024.8 or newer.
 
 ## Installation
@@ -46,6 +46,15 @@ Related entities (Boost switch, energy and diagnostic sensors, clock sensor, tim
 - Heating status (heating / target reached / heating off / off) with a subtle animation while the element heats.
 - The clock line under the buttons shows the heater's own time; a warning appears when its time zone or clock is off.
 - Follows the Home Assistant light/dark theme and UI language: English, Ukrainian and Russian; any other language gets English (numbers keep the UI language format).
+
+### Shower models (BelliSlimo)
+
+The BelliSlimo counts hot water in showers instead of °C, and the card follows it:
+
+- The dial goes from 0 to the heater's maximum showers. It shows the hot water in the tank and the target from the integration's *Hot water* and *Active target* sensors. In manual mode the handle sets *Target showers*.
+- A target of 0 showers (for example a program hour with no entry) shows as *Heating off*. Boost heats to the maximum.
+- The schedule button appears once the integration reports weekly programs for the heater. The program editor then works in showers, from 1 to the maximum. Instead of ❄ *Off* there is ✱ *Anti-freeze*, which leaves the hour empty, as on the heater's panel (`*`).
+- The statistics dialog leaves out the E01–E04 list, which describes the ModEco's error codes.
 
 ### Schedule
 

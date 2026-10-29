@@ -4,7 +4,8 @@
  * A thermostat card for Tesy water heaters handled by the `tesy` integration:
  * a dial with a drag handle for the manual setpoint, operation modes, Boost and
  * power, plus dialogs for the weekly programs (P1-P3) and for energy and
- * diagnostics. No external dependencies; installed through HACS.
+ * diagnostics. Shower models (BelliSlimo) count hot water in showers instead of
+ * °C. No external dependencies; installed through HACS.
  * https://github.com/pollstar/tesy-boiler-card
  *
  *   type: custom:tesy-boiler-card
@@ -20,6 +21,25 @@ export const MIN_TEMP = 15;
 export const MAX_TEMP = 75;
 const SCALE_MIN = 14;
 const SCALE_MAX = 75;
+
+/**
+ * Value scale of a heater. °C models: dial 14-75, setpoint and program hours
+ * 15-75, 14 = heating off. Shower models (a Target Showers number): dial and
+ * setpoint 0 to the heater's maximum, program hours 1 to the maximum, and an
+ * empty hour is anti-freeze (no "off" value).
+ */
+export const CELSIUS = {
+  showers: false, min: SCALE_MIN, max: SCALE_MAX, setMin: MIN_TEMP, setMax: MAX_TEMP,
+  slotMin: MIN_TEMP, slotMax: MAX_TEMP, off: OFF_TEMP,
+};
+
+/** Scale for a shower model from its Target Showers number state. */
+export function showerScale(numberState) {
+  const a = numberState?.attributes || {};
+  const max = Number.isFinite(Number(a.max)) && Number(a.max) > 0 ? Number(a.max) : 4;
+  const min = Number.isFinite(Number(a.min)) ? Number(a.min) : 0;
+  return { showers: true, min: 0, max, setMin: min, setMax: max, slotMin: 1, slotMax: max, off: null };
+}
 
 // ---------------------------------------------------------------- strings
 
@@ -49,8 +69,13 @@ const STRINGS = {
     firmware: "Прошивка", clockRow: "Часы", ok: "в порядке", codes: "Коды ошибок",
     e01: "обрыв нижнего датчика", e02: "КЗ нижнего датчика", e03: "обрыв верхнего датчика", e04: "КЗ верхнего датчика",
     h: "ч", min: "мин", kwh: "кВт·ч", noEntity: "Сущность не найдена",
-    unsupported: "Эта карточка пока поддерживает только проверенные модели (ModEco 2). Для этого бойлера используйте стандартную карточку термостата.",
+    unsupported: "Эта карточка пока поддерживает только проверенные модели (ModEco 2 и BelliSlimo). Для этого бойлера используйте стандартную карточку термостата.",
     failed: "Бойлер не принял команду",
+    showersN: { one: "{n} душ", few: "{n} душа", many: "{n} душей", other: "{n} душа" },
+    showersUnit: "душей", boostOnMax: "Греет до максимума",
+    gridHintShowers: "Количество душей на каждый час, по часам бойлера. Нажмите на ячейку, чтобы закрасить её выбранным значением.",
+    lessShower: "На 1 душ меньше", moreShower: "На 1 душ больше", antiFreeze: "Антизамерзание",
+    noChangesShowers: "Изменений нет. * — в этот час только защита от замерзания.",
   },
   uk: {
     days: ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"],
@@ -77,8 +102,13 @@ const STRINGS = {
     firmware: "Прошивка", clockRow: "Годинник", ok: "в порядку", codes: "Коди помилок",
     e01: "обрив нижнього датчика", e02: "КЗ нижнього датчика", e03: "обрив верхнього датчика", e04: "КЗ верхнього датчика",
     h: "год", min: "хв", kwh: "кВт·год", noEntity: "Сутність не знайдено",
-    unsupported: "Ця картка поки підтримує лише перевірені моделі (ModEco 2). Для цього бойлера використовуйте стандартну картку термостата.",
+    unsupported: "Ця картка поки підтримує лише перевірені моделі (ModEco 2 і BelliSlimo). Для цього бойлера використовуйте стандартну картку термостата.",
     failed: "Бойлер не прийняв команду",
+    showersN: { one: "{n} душ", few: "{n} душі", many: "{n} душів", other: "{n} душу" },
+    showersUnit: "душів", boostOnMax: "Гріє до максимуму",
+    gridHintShowers: "Кількість душів на кожну годину, за годинником бойлера. Натисніть на клітинку, щоб зафарбувати її вибраним значенням.",
+    lessShower: "На 1 душ менше", moreShower: "На 1 душ більше", antiFreeze: "Захист від замерзання",
+    noChangesShowers: "Змін немає. * — у цю годину лише захист від замерзання.",
   },
   en: {
     days: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
@@ -105,8 +135,13 @@ const STRINGS = {
     firmware: "Firmware", clockRow: "Clock", ok: "OK", codes: "Error codes",
     e01: "lower sensor open", e02: "lower sensor short", e03: "upper sensor open", e04: "upper sensor short",
     h: "h", min: "min", kwh: "kWh", noEntity: "Entity not found",
-    unsupported: "This card supports verified models only (ModEco 2 so far). Use the standard thermostat card for this heater.",
+    unsupported: "This card supports verified models only (ModEco 2 and BelliSlimo so far). Use the standard thermostat card for this heater.",
     failed: "The heater did not accept the command",
+    showersN: { one: "{n} shower", other: "{n} showers" },
+    showersUnit: "showers", boostOnMax: "Heats to the maximum",
+    gridHintShowers: "Showers for every hour, by the heater clock. Tap a cell to paint it with the selected number.",
+    lessShower: "1 shower less", moreShower: "1 shower more", antiFreeze: "Anti-freeze",
+    noChangesShowers: "No changes. * — anti-freeze only for that hour.",
   },
 };
 
@@ -132,13 +167,22 @@ function strings(hass) {
   return STRINGS[pickLang(uiLanguage(hass))];
 }
 
+/** The heater's scale: showers if the device has a Target Showers number. */
+function scaleOf(hass, ents) {
+  return ents?.target_showers ? showerScale(hass.states[ents.target_showers]) : CELSIUS;
+}
+
 const fmt = (s, vars) => s.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 
 // ---------------------------------------------------------------- pure logic
 
-/** Colour role for a scheduled temperature. */
-export function tempRole(t) {
+/** Colour role for a scheduled temperature (or showers on a shower scale). */
+export function tempRole(t, scale = CELSIUS) {
   if (t === null || t === undefined) return "empty";
+  if (scale.showers) {
+    const f = t / scale.max;
+    return f <= 0.25 ? "t30" : f <= 0.5 ? "t45" : f <= 0.75 ? "t65" : "t75";
+  }
   if (t <= OFF_TEMP) return "off";
   if (t <= 20) return "t20";
   if (t <= 30) return "t30";
@@ -149,8 +193,8 @@ export function tempRole(t) {
 }
 
 /** Dial angle (degrees, 0 = top, clockwise) for a temperature. */
-export function angleFor(t) {
-  const f = (t - SCALE_MIN) / (SCALE_MAX - SCALE_MIN);
+export function angleFor(t, scale = CELSIUS) {
+  const f = (t - scale.min) / (scale.max - scale.min);
   return -135 + 270 * Math.min(1, Math.max(0, f));
 }
 
@@ -168,13 +212,13 @@ export function arcPath(from, to) {
   return `M ${x0.toFixed(1)} ${y0.toFixed(1)} A ${R} ${R} 0 ${large} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`;
 }
 
-/** Setpoint for a point in the 280×280 dial box (clamped to 15-75 °C). */
-export function tempFromPoint(x, y) {
+/** Setpoint for a point in the 280×280 dial box (clamped to 15-75 °C, or the shower range). */
+export function tempFromPoint(x, y, scale = CELSIUS) {
   const dx = x - CX, dy = y - CY;
   let deg = (Math.atan2(dx, -dy) * 180) / Math.PI;
   if (deg > 135 || deg < -135) deg = dx < 0 ? -135 : 135;
-  const t = Math.round(SCALE_MIN + ((deg + 135) / 270) * (SCALE_MAX - SCALE_MIN));
-  return Math.min(MAX_TEMP, Math.max(MIN_TEMP, t));
+  const t = Math.round(scale.min + ((deg + 135) / 270) * (scale.max - scale.min));
+  return Math.min(scale.setMax, Math.max(scale.setMin, t));
 }
 
 /**
@@ -211,6 +255,7 @@ export function deviceEntities(hass, entityId) {
     clock_problem: "binary_sensor", energy_consumed: "sensor",
     energy_consumed_resettable: "sensor", error_status: "sensor",
     wifi_signal: "sensor", uptime: "sensor",
+    target_showers: "number", hot_water: "sensor", active_target: "sensor",
   };
   for (const e of Object.values(hass.entities)) {
     if (e.device_id !== entry.device_id) continue;
@@ -225,15 +270,24 @@ export function deviceEntities(hass, entityId) {
 }
 
 /** What the card shows for a water heater state. */
-// The card needs the weekly programs, which the tesy integration enables per
-// heater model and lists in the tesy_features attribute. Returns null while
-// that cannot be told (the heater is unavailable and reports no attributes).
-export function cardSupported(stateObj) {
+// °C heaters need the weekly programs, which the tesy integration enables per
+// heater model and lists in the tesy_features attribute. Shower models (they
+// have a Target Showers number) are shown with or without programs. Returns
+// null while that cannot be told (the heater is unavailable and reports no
+// attributes).
+export function cardSupported(stateObj, showers = false) {
   if (!stateObj) return null;
   const features = stateObj.attributes?.tesy_features;
-  if (Array.isArray(features)) return features.includes("schedule");
+  if (Array.isArray(features)) return features.includes("schedule") || showers;
+  if (showers) return true;
   if (stateObj.state === "unavailable" || stateObj.state === "unknown") return null;
   return false;
+}
+
+/** True if the heater lists weekly programs in tesy_features. */
+export function hasSchedule(stateObj) {
+  const features = stateObj?.attributes?.tesy_features;
+  return Array.isArray(features) && features.includes("schedule");
 }
 
 /**
@@ -283,14 +337,22 @@ export function focusKey(el) {
   return [d.action || "", d.mode || "", el.getAttribute?.("role") || ""].join("|");
 }
 
-export function heaterView(stateObj, boostOn) {
+const numOrNull = (v) => (v === null || v === undefined || v === "" || Number.isNaN(Number(v)) ? null : Number(v));
+
+/**
+ * What the dial shows. Shower models report no temperature on the water
+ * heater; pass their Hot Water and Active Target sensor states as showers
+ * ({ current, target }). A target of 0 showers means nothing to heat (an empty
+ * program hour is anti-freeze only), shown like heating off.
+ */
+export function heaterView(stateObj, boostOn, showers = null) {
   const a = stateObj?.attributes || {};
   const available = !!stateObj && stateObj.state !== "unavailable" && stateObj.state !== "unknown";
   const power = available && stateObj.state !== "off";
   const mode = power ? stateObj.state : "off";
-  const target = a.temperature === null || a.temperature === undefined ? null : Number(a.temperature);
-  const current = a.current_temperature === null || a.current_temperature === undefined ? null : Number(a.current_temperature);
-  const off = target !== null && target <= OFF_TEMP && !boostOn;
+  const target = showers ? numOrNull(showers.target) : numOrNull(a.temperature);
+  const current = showers ? numOrNull(showers.current) : numOrNull(a.current_temperature);
+  const off = target !== null && (showers ? target === 0 : target <= OFF_TEMP) && !boostOn;
   const heating = power && !!a.is_heating;
   let status = "reached";
   if (!available) status = "unavailable";
@@ -351,6 +413,7 @@ const PALETTE = `
 
 const SNOW = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 2v20M4 6.5l16 11M4 17.5l16-11"></path><path d="M9.5 3.5L12 6l2.5-2.5M9.5 20.5L12 18l2.5 2.5"></path></svg>`;
 const COPY_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+const SHOWER_ICON = `<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V9a5 5 0 0 1 10 0"></path><path d="M10 9h8l-1.5 3h-5z"></path><path d="M12 15v1M15 15v1M18 15v1M12.5 19v1M15.5 19v1"></path></svg>`;
 const CLOSE_ICON = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>`;
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -359,8 +422,17 @@ function reducedMotion() {
   return typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-function formatTemp(t, s) {
+/** "3 showers" with the plural form of the card language. */
+export function formatShowers(n, lang) {
+  const forms = STRINGS[lang]?.showersN || STRINGS.en.showersN;
+  let rule = "other";
+  try { rule = new Intl.PluralRules(lang).select(n); } catch (e) { /* unknown language */ }
+  return fmt(forms[rule] || forms.other, { n });
+}
+
+function formatTemp(t, s, scale = CELSIUS, lang = "en") {
   if (t === null || t === undefined || Number.isNaN(t)) return "—";
+  if (scale.showers) return formatShowers(Math.round(t), lang);
   if (t <= OFF_TEMP) return s.offShort;
   return `${Math.round(t)} °C`;
 }
@@ -381,7 +453,7 @@ class TesyBoilerCard extends Base {
     const tesy = Object.keys(hass?.entities || {}).filter(
       (id) => id.startsWith("water_heater.") && hass.entities[id].platform === "tesy"
     );
-    const entity = tesy.find((id) => cardSupported(hass.states?.[id])) || tesy[0];
+    const entity = tesy.find((id) => cardSupported(hass.states?.[id], !!deviceEntities(hass, id).target_showers)) || tesy[0];
     return { entity: entity || "" };
   }
 
@@ -450,14 +522,20 @@ class TesyBoilerCard extends Base {
       this.shadowRoot.innerHTML = `<style>${PALETTE}</style><ha-card><div style="padding:16px">${esc(s.noEntity)}: ${esc(this._config.entity)}</div></ha-card>`;
       return;
     }
-    if (cardSupported(stateObj) === false) {
+    const scale = scaleOf(hass, this._ents);
+    this._scale = scale;
+    const lang = pickLang(uiLanguage(hass));
+    if (cardSupported(stateObj, scale.showers) === false) {
       const model = this._ents.device?.model;
       this.shadowRoot.innerHTML = `<style>${PALETTE}</style><ha-card><div style="padding:16px">${esc(s.unsupported)}${model ? ` (${esc(model)})` : ""}</div></ha-card>`;
       return;
     }
 
     const boostOn = hass.states[this._ents.boost]?.state === "on";
-    const v = heaterView(stateObj, boostOn);
+    const showerValues = scale.showers
+      ? { current: hass.states[this._ents.hot_water]?.state, target: hass.states[this._ents.active_target]?.state }
+      : null;
+    const v = heaterView(stateObj, boostOn, showerValues);
     // Right after a setpoint change, show the expected heating state until the
     // heater reports back (the integration polls it ~2 s after a command).
     const opt = this._optimistic;
@@ -475,19 +553,24 @@ class TesyBoilerCard extends Base {
     const name = this._config.name || device?.name_by_user || device?.name || stateObj.attributes.friendly_name;
     const subtitle = this._config.subtitle ?? [device?.manufacturer, device?.model].filter(Boolean).join(" ");
 
-    const manualSet = stateObj.attributes.manual_temperature ?? v.target;
+    // Shower models: the setpoint is the Target Showers number.
+    const showersSet = Number(hass.states[this._ents.target_showers]?.state);
+    const manualSet = scale.showers
+      ? (Number.isNaN(showersSet) ? null : showersSet)
+      : stateObj.attributes.manual_temperature ?? v.target;
     if (this._pendingTarget !== undefined && Number(manualSet) === this._pendingTarget) {
       this._pendingTarget = undefined;
       clearTimeout(this._pendingTimer);
     }
     const setpoint = this._pendingTarget ?? (v.manual && manualSet !== null ? Number(manualSet) : null);
     const hasHandle = v.power && v.manual && setpoint !== null;
-    const curAngle = v.current === null ? -135 : Math.max(-134, angleFor(v.current));
+    const curAngle = v.current === null ? -135 : Math.max(-134, angleFor(v.current, scale));
     const anim = this._config.animation;
     const animate = v.heating && anim !== false && anim !== "off"
       && (anim === true || anim === "always" || !reducedMotion());
-    const [hx, hy] = hasHandle ? pointAt(angleFor(setpoint)) : [0, 0];
-    const [bx, by] = pointAt(angleFor(75));
+    const [hx, hy] = hasHandle ? pointAt(angleFor(setpoint, scale)) : [0, 0];
+    const [bx, by] = pointAt(angleFor(scale.max, scale));
+    const boostText = scale.showers ? s.boostOnMax : s.boostOn;
 
     const status = {
       reached: ["ok", s.reached], heating: ["warm", s.heating], heatingBoost: ["warm", s.heatingBoost],
@@ -502,7 +585,7 @@ class TesyBoilerCard extends Base {
       : "";
 
     const targetText = v.power
-      ? (boostOn ? "75 °C" : formatTemp(v.manual ? setpoint : v.target, s))
+      ? (boostOn ? formatTemp(scale.max, s, scale, lang) : formatTemp(v.manual ? setpoint : v.target, s, scale, lang))
       : "—";
 
     // The DOM is rebuilt below: keep keyboard focus on the same control.
@@ -522,7 +605,7 @@ class TesyBoilerCard extends Base {
                   aria-label="${esc(s.power)}: ${esc(v.power ? s.powerOn : s.powerOff)}" title="${esc(s.power)}: ${esc(v.power ? s.powerOn : s.powerOff)}" ${v.available ? "" : "disabled"}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 2v10"></path><path d="M18.4 6.6a9 9 0 1 1-12.8 0"></path></svg></button>
           <div class="dial">
             <svg viewBox="0 0 280 280" role="slider" tabindex="${hasHandle ? 0 : -1}" aria-label="${esc(s.setpoint)}"
-                 aria-valuemin="${MIN_TEMP}" aria-valuemax="${MAX_TEMP}" aria-valuenow="${hasHandle ? setpoint : ""}"
+                 aria-valuemin="${scale.setMin}" aria-valuemax="${scale.setMax}" aria-valuenow="${hasHandle ? setpoint : ""}"
                  aria-disabled="${hasHandle ? "false" : "true"}" class="${hasHandle ? "drag" : ""}">
               <path d="${arcPath(-135, 135)}" fill="none" stroke-width="22" stroke-linecap="round" style="stroke: var(--t-track)"></path>
               ${v.current !== null ? `<path d="${arcPath(-135, curAngle)}" fill="none" stroke-width="22" stroke-linecap="round" style="stroke: var(--t-heat)"></path>` : ""}
@@ -531,7 +614,7 @@ class TesyBoilerCard extends Base {
               ${hasHandle ? `<circle class="handle" cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="15" stroke-width="8" style="fill: var(--ha-card-background, var(--card-background-color, #ffffff)); stroke: var(--t-inv-bg)"></circle>` : ""}
             </svg>
             <div class="center">
-              <div class="cur num">${formatCurrent(v.current, hass)}<span>°C</span></div>
+              <div class="cur num">${formatCurrent(v.current, hass)}${scale.showers ? `<span class="unit" role="img" aria-label="${esc(s.showersUnit)}">${SHOWER_ICON}</span>` : "<span>°C</span>"}</div>
               <div class="tgt num">${esc(targetText)}</div>
               <div class="pill ${status[0]}">${v.heating ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22c4 0 7-2.8 7-6.8 0-3.5-2.3-5.6-4-7.7-.6 2-1.6 3-3 3.5.4-3.4-1-6.5-4-9 0 4-4 6.5-4 12.2C4 19.2 7.6 22 12 22z">${animate ? `<animate attributeName="opacity" values="1;0.5;0.85;1" dur="1.6s" repeatCount="indefinite"></animate>` : ""}</path></svg>` : ""}<span>${esc(status[1])}</span></div>
             </div>
@@ -545,10 +628,10 @@ class TesyBoilerCard extends Base {
 
           <div class="actions">
             ${this._ents.boost ? `<button type="button" class="act ${boostOn ? "warm" : ""}" aria-pressed="${boostOn}" data-action="boost"
-                aria-label="${esc(s.boost)}: ${esc(boostOn ? s.boostOn : s.boostOffHint)}" title="${esc(s.boost)}: ${esc(boostOn ? s.boostOn : s.boostOffHint)}" ${v.available ? "" : "disabled"}>
+                aria-label="${esc(s.boost)}: ${esc(boostOn ? boostText : s.boostOffHint)}" title="${esc(s.boost)}: ${esc(boostOn ? boostText : s.boostOffHint)}" ${v.available ? "" : "disabled"}>
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 16.5c-1.5 1.3-2 5-2 5s3.7-.5 5-2c.7-.8.7-2.1-.1-2.9a2.2 2.2 0 0 0-2.9-.1z"></path><path d="M12 15l-3-3a22 22 0 0 1 2-3.9A12.9 12.9 0 0 1 22 2c0 2.7-.8 7.5-6 11a22.4 22.4 0 0 1-4 2z"></path></svg></button>` : ""}
-            <button type="button" class="act" data-action="schedule" aria-label="${esc(s.schedule)}" title="${esc(s.schedule)}">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg></button>
+            ${hasSchedule(stateObj) ? `<button type="button" class="act" data-action="schedule" aria-label="${esc(s.schedule)}" title="${esc(s.schedule)}">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg></button>` : ""}
             <button type="button" class="act" data-action="stats" aria-label="${esc(s.stats)}" title="${esc(s.stats)}">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"></path><path d="M7 15l4-4 3 3 5-6"></path></svg></button>
           </div>
@@ -570,19 +653,22 @@ class TesyBoilerCard extends Base {
   }
 
   _bindDial(svg, setpoint) {
+    const scale = this._scale || CELSIUS;
     const toTemp = (e) => {
       const r = svg.getBoundingClientRect();
-      return tempFromPoint(((e.clientX - r.left) * 280) / r.width, ((e.clientY - r.top) * 280) / r.height);
+      return tempFromPoint(((e.clientX - r.left) * 280) / r.width, ((e.clientY - r.top) * 280) / r.height, scale);
     };
     const show = (t) => {
-      const [x, y] = pointAt(angleFor(t));
+      const [x, y] = pointAt(angleFor(t, scale));
       const handle = svg.querySelector(".handle");
       handle.setAttribute("cx", x.toFixed(1));
       handle.setAttribute("cy", y.toFixed(1));
       handle.setAttribute("r", this._drag ? "18" : "15");
       svg.setAttribute("aria-valuenow", t);
       const tgt = this.shadowRoot.querySelector(".tgt");
-      if (tgt && !(this._hass.states[this._ents.boost]?.state === "on")) tgt.textContent = `${t} °C`;
+      if (tgt && !(this._hass.states[this._ents.boost]?.state === "on")) {
+        tgt.textContent = formatTemp(t, strings(this._hass), scale, pickLang(uiLanguage(this._hass)));
+      }
       this._dragTemp = t;
     };
     svg.addEventListener("pointerdown", (e) => {
@@ -602,7 +688,7 @@ class TesyBoilerCard extends Base {
       const step = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 }[e.key];
       if (!step) return;
       e.preventDefault();
-      const t = Math.min(MAX_TEMP, Math.max(MIN_TEMP, (this._pendingTarget ?? setpoint) + step));
+      const t = Math.min(scale.setMax, Math.max(scale.setMin, (this._pendingTarget ?? setpoint) + step));
       show(t);
       clearTimeout(this._keyTimer);
       this._pendingTarget = t;
@@ -620,7 +706,9 @@ class TesyBoilerCard extends Base {
     this._optimisticTimer = setTimeout(() => this._render(), 15100);
     clearTimeout(this._pendingTimer);
     this._pendingTimer = setTimeout(() => { this._pendingTarget = undefined; this._render(); }, 8000);
-    const ok = await this._call("water_heater", "set_temperature", { entity_id: this._config.entity, temperature: t });
+    const ok = this._scale?.showers
+      ? await this._call("number", "set_value", { entity_id: this._ents.target_showers, value: t })
+      : await this._call("water_heater", "set_temperature", { entity_id: this._config.entity, temperature: t });
     if (!ok && seq === this._commitSeq) {
       // Do not keep showing a setpoint and heating state the heater never got
       // (unless a newer setpoint was sent since: that one is still on its way).
@@ -686,6 +774,7 @@ const CARD_CSS = `
   .center { position: absolute; left: 0; right: 0; top: 28%; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
   .cur { font-size: clamp(40px, 13vw, 64px); font-weight: 600; line-height: 1; }
   .cur span { font-size: 0.44em; color: var(--t-muted); }
+  .cur .unit { display: inline-flex; vertical-align: baseline; margin-left: 0.1em; }
   .tgt { font-size: clamp(20px, 6vw, 30px); font-weight: 600; color: var(--t-muted); }
   .pill { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 6px 12px; border-radius: 999px; font-size: 14px; font-weight: 500; }
   .pill svg { width: 14px; height: 14px; flex-shrink: 0; }
@@ -735,6 +824,7 @@ class TesyBoilerDialog extends Base {
   set hass(hass) {
     const old = this._hass;
     this._hass = hass;
+    this._scale = scaleOf(hass, this._ents);
     if (this._kind === "schedule") {
       if (!this._edit) this._loadSchedule();
       else if (!this._dirtyDays().length && !this._st.saving) this._syncSchedule();
@@ -786,6 +876,9 @@ class TesyBoilerDialog extends Base {
     const dev = this._deviceNow();
     this._st.day = dev ? DAYS[dev.day] : "mo";
     this._st.copySrc = this._st.day;
+    if (this._scale.showers) {
+      this._st.brush = this._st.lastTemp = Math.min(2, this._scale.slotMax);
+    }
   }
 
   /** Pick up programs changed elsewhere (panel, MyTESY) while nothing is edited. */
@@ -894,17 +987,22 @@ class TesyBoilerDialog extends Base {
         ${this._ents.clock_problem ? `<div class="row"><span>${esc(s.clockRow)}</span><span class="${clockBad ? "warmtxt" : ""}">${esc(clockBad ? s.clockProblem : s.ok)}</span></div>` : ""}
         <div class="row"><span>${esc(s.firmware)}</span><span class="num">${esc([dev?.sw_version && "Wi-Fi " + dev.sw_version, dev?.hw_version].filter(Boolean).join(" · ") || "—")}</span></div>
       </div>
-      <div class="k caps">${esc(s.codes)}</div>
-      <div class="codes">${["01", "02", "03", "04"].map((c) => `<div><b class="num">E${c}</b> ${esc(s["e" + c])}</div>`).join("")}</div>`;
+      ${this._scale.showers ? "" : `<div class="k caps">${esc(s.codes)}</div>
+      <div class="codes">${["01", "02", "03", "04"].map((c) => `<div><b class="num">E${c}</b> ${esc(s["e" + c])}</div>`).join("")}</div>`}`;
   }
 
   // ---- schedule helpers
 
   _cellHtml(t, h, day, s, extraClass = "") {
-    const role = tempRole(t);
+    const scale = this._scale;
+    const role = tempRole(t, scale);
     const off = role === "off";
-    const label = `${s.days[DAYS.indexOf(day)]} ${String(h).padStart(2, "0")}:00, ${t === null ? s.notSet : off ? s.heatOff : t + " °C"}`;
-    return { role, off, label, extraClass };
+    let value = t === null ? s.notSet : off ? s.heatOff : t + " °C";
+    if (scale.showers) value = t === null ? s.antiFreeze : formatShowers(t, pickLang(uiLanguage(this._hass)));
+    const label = `${s.days[DAYS.indexOf(day)]} ${String(h).padStart(2, "0")}:00, ${value}`;
+    // Shower models: an empty hour is anti-freeze, shown as on the panel (*).
+    const empty = scale.showers ? "*" : null;
+    return { role, off, label, extraClass, empty };
   }
 
   _isNow(day, h) {
@@ -913,20 +1011,36 @@ class TesyBoilerDialog extends Base {
     return now && a.active_program === this._st.prog && DAYS[now.day] === day && now.hour === h;
   }
 
+  /** Brush swatch text and screen reader value for a brush level. */
+  _brushText(level, isOff, s) {
+    const scale = this._scale;
+    if (scale.showers) {
+      return isOff ? ["*", s.antiFreeze] : [String(level), formatShowers(level, pickLang(uiLanguage(this._hass)))];
+    }
+    return isOff ? [s.offShort, s.heatOff] : [level + "°", level + " °C"];
+  }
+
   _brushHtml(s, compact) {
     const st = this._st;
-    const isOff = st.brush === OFF_TEMP;
+    const scale = this._scale;
+    // The "off" brush paints 14 °C (heating off), or an empty hour (anti-freeze) on a shower scale.
+    const isOff = st.brush === scale.off;
     const level = isOff ? st.lastTemp : st.brush;
+    const [swatch, valueText] = this._brushText(level, isOff, s);
+    const offLabel = scale.showers ? s.antiFreeze : s.offShort;
+    const range = scale.showers
+      ? `${scale.slotMin}–${formatShowers(scale.slotMax, pickLang(uiLanguage(this._hass)))}`
+      : s.step;
     return `
       <div class="brush">
         ${compact ? "" : `<span class="k caps">${esc(s.brush)}</span>`}
-        <div class="swatch t-${tempRole(st.brush)} num" aria-hidden="true">${isOff ? esc(s.offShort) : level + "°"}</div>
-        ${compact ? "" : `<button type="button" class="sq" data-action="brush-step" data-step="-1" aria-label="${esc(s.colder)}">−</button>`}
+        <div class="swatch t-${isOff ? (scale.showers ? "empty" : "off") : tempRole(level, scale)} num" aria-hidden="true">${esc(swatch)}</div>
+        ${compact ? "" : `<button type="button" class="sq" data-action="brush-step" data-step="-1" aria-label="${esc(scale.showers ? s.lessShower : s.colder)}">−</button>`}
         <label class="sr" for="brush">${esc(s.brush)}</label>
-        <input id="brush" type="range" min="${MIN_TEMP}" max="${MAX_TEMP}" step="1" value="${level}" data-input="brush" aria-valuetext="${isOff ? esc(s.heatOff) : level + " °C"}">
-        ${compact ? "" : `<button type="button" class="sq" data-action="brush-step" data-step="1" aria-label="${esc(s.warmer)}">+</button>`}
-        <button type="button" class="offbtn ${isOff ? "on" : ""}" aria-pressed="${isOff}" data-action="brush-off">${SNOW}<span>${esc(s.offShort)}</span></button>
-        ${compact ? "" : `<span class="k">${esc(s.step)}</span>`}
+        <input id="brush" type="range" min="${scale.slotMin}" max="${scale.slotMax}" step="1" value="${level}" data-input="brush" aria-valuetext="${esc(valueText)}">
+        ${compact ? "" : `<button type="button" class="sq" data-action="brush-step" data-step="1" aria-label="${esc(scale.showers ? s.moreShower : s.warmer)}">+</button>`}
+        <button type="button" class="offbtn ${isOff ? "on" : ""}" aria-pressed="${isOff}" data-action="brush-off">${scale.showers ? "<b aria-hidden=\"true\">*</b>" : SNOW}<span>${esc(offLabel)}</span></button>
+        ${compact ? "" : `<span class="k">${esc(range)}</span>`}
       </div>`;
   }
 
@@ -937,7 +1051,8 @@ class TesyBoilerDialog extends Base {
 
   _footerHtml(s) {
     const dirty = this._dirtyDays();
-    const note = this._st.error ? fmt(s.saveFailed, { e: this._st.error }) : dirty.length ? fmt(s.unsaved, { n: dirty.length }) : s.noChanges;
+    const idle = this._scale.showers ? s.noChangesShowers : s.noChanges;
+    const note = this._st.error ? fmt(s.saveFailed, { e: this._st.error }) : dirty.length ? fmt(s.unsaved, { n: dirty.length }) : idle;
     const cls = this._st.error ? "errtxt" : dirty.length ? "warmtxt" : "";
     return `
       <div class="foot">
@@ -955,12 +1070,12 @@ class TesyBoilerDialog extends Base {
         <div class="dl">${esc(s.days[i])}</div>
         ${prog[d].map((t, h) => {
           const c = this._cellHtml(t, h, d, s);
-          return `<button type="button" class="cell t-${c.role} ${this._isNow(d, h) ? "now" : ""}" data-action="paint" data-day="${d}" data-hour="${h}" aria-label="${esc(c.label)}">${c.off ? SNOW : `<span class="num">${t === null ? "·" : t}</span>`}</button>`;
+          return `<button type="button" class="cell t-${c.role} ${this._isNow(d, h) ? "now" : ""}" data-action="paint" data-day="${d}" data-hour="${h}" aria-label="${esc(c.label)}">${c.off ? SNOW : `<span class="num">${t === null ? c.empty ?? "·" : t}</span>`}</button>`;
         }).join("")}
         <button type="button" class="cp ${st.copySrc === d ? "on" : ""}" aria-pressed="${st.copySrc === d}" data-action="copy-src" data-day="${d}" aria-label="${esc(s.copy)} ${esc(s.days[i])}">${COPY_ICON}</button>
       </div>`).join("");
     return `
-      <div class="ghead"><p class="k">${esc(s.gridHint)}</p>${this._tabsHtml()}</div>
+      <div class="ghead"><p class="k">${esc(this._scale.showers ? s.gridHintShowers : s.gridHint)}</p>${this._tabsHtml()}</div>
       <div class="grid"><div class="grow"><div class="dl"></div>${hours}</div>${rows}</div>
       ${this._brushHtml(s, false)}
       ${this._copyHtml(s, st.copySrc, true)}
@@ -996,13 +1111,14 @@ class TesyBoilerDialog extends Base {
     const prog = this._edit[st.prog];
     const week = DAYS.map((d, i) => `
       <button type="button" class="wk ${st.day === d ? "on" : ""}" aria-pressed="${st.day === d}" data-action="day" data-day="${d}" aria-label="${esc(s.days[i])}">
-        <span class="wl">${esc(s.days[i])}</span>${prog[d].map((t) => `<span class="ws t-${tempRole(t)}"></span>`).join("")}
+        <span class="wl">${esc(s.days[i])}</span>${prog[d].map((t) => `<span class="ws t-${tempRole(t, this._scale)}"></span>`).join("")}
       </button>`).join("");
     const dirty = this._dirtyDays();
     const days = DAYS.map((d, i) => `<button type="button" class="dayb ${st.day === d ? "on" : ""}" aria-pressed="${st.day === d}" data-action="day" data-day="${d}">${esc(s.days[i])}${dirty.includes(st.prog + d) ? "•" : ""}</button>`).join("");
     const cells = prog[st.day].map((t, h) => {
       const c = this._cellHtml(t, h, st.day, s);
-      return `<button type="button" class="pcell t-${c.role} ${this._isNow(st.day, h) ? "now" : ""}" data-action="paint" data-day="${st.day}" data-hour="${h}" aria-label="${esc(c.label)}"><span class="num hr">${String(h).padStart(2, "0")}:00</span>${c.off ? SNOW : `<span class="num big">${t === null ? "—" : t + "°"}</span>`}</button>`;
+      const shown = t === null ? c.empty ?? "—" : this._scale.showers ? t : t + "°";
+      return `<button type="button" class="pcell t-${c.role} ${this._isNow(st.day, h) ? "now" : ""}" data-action="paint" data-day="${st.day}" data-hour="${h}" aria-label="${esc(c.label)}"><span class="num hr">${String(h).padStart(2, "0")}:00</span>${c.off ? SNOW : `<span class="num big">${shown}</span>`}</button>`;
     }).join("");
     return `
       ${this._tabsHtml()}
@@ -1026,7 +1142,7 @@ class TesyBoilerDialog extends Base {
       if (e.type === "change") this._render();
       else {
         const sw = this.shadowRoot.querySelector(".swatch");
-        if (sw) { sw.className = `swatch t-${tempRole(t)} num`; sw.textContent = t + "°"; }
+        if (sw) { sw.className = `swatch t-${tempRole(t, this._scale)} num`; sw.textContent = this._brushText(t, false, strings(this._hass))[0]; }
         this.shadowRoot.querySelector(".offbtn")?.classList.remove("on");
       }
     } else if (el.dataset.input === "copy-src" && e.type === "change") {
@@ -1049,8 +1165,13 @@ class TesyBoilerDialog extends Base {
       case "prog": st.prog = Number(el.dataset.prog); st.copyDst = []; break;
       case "day": st.day = el.dataset.day; st.copyDst = st.copyDst.filter((d) => d !== st.day); break;
       case "paint": this._edit[st.prog][el.dataset.day][Number(el.dataset.hour)] = st.brush; st.error = ""; break;
-      case "brush-step": st.brush = Math.min(MAX_TEMP, Math.max(MIN_TEMP, (st.brush === OFF_TEMP ? st.lastTemp : st.brush) + Number(el.dataset.step))); st.lastTemp = st.brush; break;
-      case "brush-off": if (st.brush === OFF_TEMP) st.brush = st.lastTemp; else { st.lastTemp = st.brush; st.brush = OFF_TEMP; } break;
+      case "brush-step": {
+        const sc = this._scale;
+        st.brush = Math.min(sc.slotMax, Math.max(sc.slotMin, (st.brush === sc.off ? st.lastTemp : st.brush) + Number(el.dataset.step)));
+        st.lastTemp = st.brush;
+        break;
+      }
+      case "brush-off": if (st.brush === this._scale.off) st.brush = st.lastTemp; else { st.lastTemp = st.brush; st.brush = this._scale.off; } break;
       case "copy-src": st.copySrc = el.dataset.day; st.copyDst = st.copyDst.filter((d) => d !== st.copySrc); break;
       case "copy-dst": {
         const d = el.dataset.day;
@@ -1129,6 +1250,7 @@ const DIALOG_CSS = `
   .sq { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--t-border); background: var(--t-surface-2); font-size: 22px; }
   .offbtn { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border-radius: 12px; font-size: 14px; font-weight: 500; background: var(--t-off-bg); color: var(--t-off-fg); border: 1px solid var(--t-off-border); }
   .offbtn.on { background: var(--t-off-fg); color: var(--t-on-off); border-color: var(--t-off-fg); }
+  .offbtn b { font-size: 18px; line-height: 1; }
   .copy { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 16px; background: var(--t-surface); }
   .copy.wide { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; }
   .ddrow { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)) auto; gap: 4px; }
