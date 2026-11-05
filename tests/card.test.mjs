@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {
   tempRole, angleFor, tempFromPoint, scheduleCalls, heaterView, deviceEntities, DAYS,
   pickLang, cardSupported, errorView, numberLocale, wallClock, focusKey, durationSeconds, formatCurrent,
-  CELSIUS, showerScale, hasSchedule, formatShowers,
+  CELSIUS, showerScale, hasSchedule, formatShowers, expectedView, clampBrush,
 } from "../tesy-boiler-card.js";
 
 test("temperature roles", () => {
@@ -206,6 +206,27 @@ test("heater view of a shower model reads its sensors", () => {
   assert.equal(v.current, null); assert.equal(v.target, null); assert.equal(v.status, "idle");
   // 0 showers in the tank is a value, not missing
   assert.equal(heaterView(heater("eco"), false, { current: "0", target: "1" }).current, 0);
+});
+
+test("expected state after a setpoint change", () => {
+  assert.deepEqual(expectedView(40, 60, false), { heating: true, status: "heating" });
+  assert.deepEqual(expectedView(60, 60, false), { heating: false, status: "reached" });
+  assert.deepEqual(expectedView(1, 3, true), { heating: true, status: "heating" });
+  assert.deepEqual(expectedView(3, 2, true), { heating: false, status: "reached" });
+  // 0 showers is heating off, also when the tank is empty or holds water
+  assert.deepEqual(expectedView(0, 0, true), { heating: false, status: "heatOff" });
+  assert.deepEqual(expectedView(2, 0, true), { heating: false, status: "heatOff" });
+});
+
+test("brush stays within the scale and keeps the off value", () => {
+  const three = showerScale(number(3));
+  assert.equal(clampBrush(4, three), 3);
+  assert.equal(clampBrush(2, three), 2);
+  assert.equal(clampBrush(null, three), null);
+  assert.equal(clampBrush(50, three), 3); // the dialog's start value
+  assert.equal(clampBrush(14, CELSIUS), 14);
+  assert.equal(clampBrush(90, CELSIUS), 75);
+  assert.equal(clampBrush(50, CELSIUS), 50);
 });
 
 test("showers with the plural form of each card language", () => {

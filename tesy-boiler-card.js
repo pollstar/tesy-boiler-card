@@ -363,6 +363,22 @@ export function heaterView(stateObj, boostOn, showers = null) {
   return { available, power, mode, target, current, off, heating, status, manual: mode === "performance" };
 }
 
+/**
+ * The heating state expected right after a setpoint change, until the heater
+ * reports back. A target of 0 showers is heating off, whatever the tank holds.
+ */
+export function expectedView(current, target, showers) {
+  if (showers && target === 0) return { heating: false, status: "heatOff" };
+  const heating = current < target - 0.5;
+  return { heating, status: heating ? "heating" : "reached" };
+}
+
+/** A brush value within the scale. The off value (empty hour on showers) stays. */
+export function clampBrush(value, scale) {
+  if (value === scale.off) return value;
+  return Math.min(scale.slotMax, Math.max(scale.slotMin, value));
+}
+
 // ---------------------------------------------------------------- styles
 
 const PALETTE = `
@@ -541,8 +557,7 @@ class TesyBoilerCard extends Base {
     const opt = this._optimistic;
     if (opt && Date.now() < opt.until && !(Date.parse(stateObj.last_updated) > opt.since + 1500)) {
       if (v.power && v.manual && !boostOn && v.current !== null) {
-        v.heating = v.current < opt.target - 0.5;
-        v.status = v.heating ? "heating" : "reached";
+        Object.assign(v, expectedView(v.current, opt.target, scale.showers));
       }
     } else if (opt) {
       this._optimistic = null;
@@ -825,6 +840,10 @@ class TesyBoilerDialog extends Base {
     const old = this._hass;
     this._hass = hass;
     this._scale = scaleOf(hass, this._ents);
+    // The scale can change under the brush: the maximum falls back to 4 until
+    // the Target Showers state arrives.
+    this._st.brush = clampBrush(this._st.brush, this._scale);
+    this._st.lastTemp = clampBrush(this._st.lastTemp, this._scale);
     if (this._kind === "schedule") {
       if (!this._edit) this._loadSchedule();
       else if (!this._dirtyDays().length && !this._st.saving) this._syncSchedule();
