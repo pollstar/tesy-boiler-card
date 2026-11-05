@@ -53,7 +53,7 @@ The BelliSlimo counts hot water in showers instead of °C, and the card follows 
 
 - The dial goes from 0 to the heater's maximum showers. It shows the hot water in the tank and the target from the integration's *Hot water* and *Active target* sensors. In manual mode the handle sets *Target showers*.
 - A target of 0 showers (for example a program hour with no entry) shows as *Heating off*. Boost heats to the maximum.
-- The schedule button appears once the integration reports weekly programs for the heater. The program editor then works in showers, from 1 to the maximum. Instead of ❄ *Off* there is ✱ *Anti-freeze*, which leaves the hour empty, as on the heater's panel (`*`).
+- The schedule button appears once the integration reports weekly programs for the heater. The program editor then works in showers, from 1 to the maximum. Instead of ❄ *Off* there is `*` *Anti-freeze*, which leaves the hour empty, as on the heater's panel.
 - The statistics dialog leaves out the E01–E04 list, which describes the ModEco's error codes.
 
 ### Schedule
