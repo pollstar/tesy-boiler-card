@@ -505,6 +505,7 @@ class TesyBoilerCard extends Base {
     const ids = [this._config?.entity, ...Object.values(this._ents || {}).filter((v) => typeof v === "string")];
     if (old.themes?.darkMode !== hass.themes?.darkMode) return true;
     if (uiLanguage(old) !== uiLanguage(hass)) return true;
+    if (old.entities !== hass.entities) return true; // the shower entities decide the scale
     return ids.some((id) => old.states[id] !== hass.states[id]);
   }
 
