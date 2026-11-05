@@ -840,6 +840,8 @@ class TesyBoilerDialog extends Base {
   set hass(hass) {
     const old = this._hass;
     this._hass = hass;
+    // Entities can be added or renamed while the dialog is open.
+    if (old && old.entities !== hass.entities) this._ents = deviceEntities(hass, this._config.entity);
     this._scale = scaleOf(hass, this._ents);
     // The scale can change under the brush: the maximum falls back to 4 until
     // the Target Showers state arrives.
@@ -851,7 +853,7 @@ class TesyBoilerDialog extends Base {
     }
     const ids = [this._config.entity, ...Object.values(this._ents).filter((v) => typeof v === "string")];
     if (!old || old.themes?.darkMode !== hass.themes?.darkMode || uiLanguage(old) !== uiLanguage(hass)
-        || ids.some((id) => old.states[id] !== hass.states[id])) {
+        || old.entities !== hass.entities || ids.some((id) => old.states[id] !== hass.states[id])) {
       this._render();
     }
   }
