@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   tempRole, angleFor, tempFromPoint, scheduleCalls, heaterView, deviceEntities, DAYS,
   pickLang, cardSupported, errorView, numberLocale, wallClock, focusKey, durationSeconds, formatCurrent,
+  CELSIUS, showerScale, hasSchedule, formatShowers, expectedView, clampBrush,
 } from "../tesy-boiler-card.js";
 
 test("temperature roles", () => {
@@ -141,4 +142,120 @@ test("water temperature has no forced decimal", () => {
   assert.equal(formatCurrent(42.3, ru), "42,3");
   assert.equal(formatCurrent(42.3, { locale: { language: "en" } }), "42.3");
   assert.equal(formatCurrent(null, ru), "—");
+});
+
+// ---- shower models (BelliSlimo): a Target Showers number, values in showers
+
+const number = (max, min = 0) => ({ state: "2", attributes: { min, max, step: 1 } });
+
+test("shower scale from the Target Showers number", () => {
+  assert.deepEqual(showerScale(number(4)), {
+    showers: true, min: 0, max: 4, setMin: 0, setMax: 4, slotMin: 1, slotMax: 4, off: null,
+  });
+  assert.equal(showerScale(number(5)).max, 5);
+  assert.equal(showerScale(undefined).max, 4); // number not loaded yet
+  assert.equal(showerScale({ attributes: { max: 0 } }).max, 4);
+});
+
+test("dial maps 0..max showers and snaps to whole showers", () => {
+  const sc = showerScale(number(4));
+  assert.equal(angleFor(0, sc), -135);
+  assert.equal(angleFor(4, sc), 135);
+  for (const n of [0, 1, 2, 3, 4]) {
+    const a = (angleFor(n, sc) * Math.PI) / 180;
+    assert.equal(tempFromPoint(140 + 116 * Math.sin(a), 140 - 116 * Math.cos(a), sc), n);
+  }
+  assert.equal(tempFromPoint(100, 279, sc), 0);
+  assert.equal(tempFromPoint(180, 279, sc), 4);
+  // °C stays the default
+  assert.equal(angleFor(14), angleFor(14, CELSIUS));
+});
+
+test("shower roles: no off value, empty is anti-freeze", () => {
+  const sc = showerScale(number(4));
+  assert.equal(tempRole(null, sc), "empty");
+  assert.deepEqual([1, 2, 3, 4].map((n) => tempRole(n, sc)), ["t30", "t45", "t65", "t75"]);
+  assert.equal(tempRole(14), "off"); // °C unchanged
+});
+
+test("card support: shower models with or without programs", () => {
+  const st = (features) => ({ state: "eco", attributes: features ? { tesy_features: features } : {} });
+  assert.equal(cardSupported(st(), true), true); // 1.7.0 without programs for the BelliSlimo
+  assert.equal(cardSupported(st(["readback", "timezone"]), true), true);
+  assert.equal(cardSupported(st(["readback", "schedule", "timezone"]), true), true);
+  assert.equal(cardSupported({ state: "unavailable", attributes: {} }, true), true);
+  // °C heaters still need the programs
+  assert.equal(cardSupported(st(["readback", "timezone"]), false), false);
+  assert.equal(hasSchedule(st(["schedule"])), true);
+  assert.equal(hasSchedule(st(["readback"])), false);
+  assert.equal(hasSchedule(st()), false);
+});
+
+test("heater view of a shower model reads its sensors", () => {
+  const heater = (state, attrs = {}) => ({ state, attributes: { temperature: null, current_temperature: null, ...attrs } });
+  let v = heaterView(heater("performance", { is_heating: true }), false, { current: "1", target: "3" });
+  assert.equal(v.current, 1); assert.equal(v.target, 3); assert.equal(v.status, "heating");
+  // an empty program hour reports 0 showers: nothing to heat
+  v = heaterView(heater("p2"), false, { current: "2", target: "0" });
+  assert.equal(v.off, true); assert.equal(v.status, "heatOff");
+  // Boost heats regardless
+  v = heaterView(heater("p2", { is_heating: true }), true, { current: "2", target: "0" });
+  assert.equal(v.off, false); assert.equal(v.status, "heatingBoost");
+  // sensors not loaded yet
+  v = heaterView(heater("eco"), false, { current: undefined, target: "unknown" });
+  assert.equal(v.current, null); assert.equal(v.target, null); assert.equal(v.status, "idle");
+  // 0 showers in the tank is a value, not missing
+  assert.equal(heaterView(heater("eco"), false, { current: "0", target: "1" }).current, 0);
+});
+
+test("expected state after a setpoint change", () => {
+  assert.deepEqual(expectedView(40, 60, false), { heating: true, status: "heating" });
+  assert.deepEqual(expectedView(60, 60, false), { heating: false, status: "reached" });
+  assert.deepEqual(expectedView(1, 3, true), { heating: true, status: "heating" });
+  assert.deepEqual(expectedView(3, 2, true), { heating: false, status: "reached" });
+  // 0 showers is heating off, also when the tank is empty or holds water
+  assert.deepEqual(expectedView(0, 0, true), { heating: false, status: "heatOff" });
+  assert.deepEqual(expectedView(2, 0, true), { heating: false, status: "heatOff" });
+});
+
+test("brush stays within the scale and keeps the off value", () => {
+  const three = showerScale(number(3));
+  assert.equal(clampBrush(4, three), 3);
+  assert.equal(clampBrush(2, three), 2);
+  assert.equal(clampBrush(null, three), null);
+  assert.equal(clampBrush(50, three), 3); // the dialog's start value
+  assert.equal(clampBrush(14, CELSIUS), 14);
+  assert.equal(clampBrush(90, CELSIUS), 75);
+  assert.equal(clampBrush(50, CELSIUS), 50);
+});
+
+test("showers with the plural form of each card language", () => {
+  assert.deepEqual([0, 1, 2, 4].map((n) => formatShowers(n, "en")), ["0 showers", "1 shower", "2 showers", "4 showers"]);
+  assert.deepEqual([0, 1, 2, 4].map((n) => formatShowers(n, "uk")), ["0 душів", "1 душ", "2 душі", "4 душі"]);
+  assert.deepEqual([0, 1, 2, 4].map((n) => formatShowers(n, "ru")), ["0 душей", "1 душ", "2 душа", "4 душа"]);
+});
+
+test("device entities include the shower entities", () => {
+  const hass = {
+    entities: {
+      "water_heater.b_heater": { entity_id: "water_heater.b_heater", device_id: "d1", platform: "tesy" },
+      "number.b_target_showers": { entity_id: "number.b_target_showers", device_id: "d1", translation_key: "target_showers" },
+      "sensor.b_hot_water": { entity_id: "sensor.b_hot_water", device_id: "d1", translation_key: "hot_water" },
+      "sensor.b_active_target": { entity_id: "sensor.b_active_target", device_id: "d1", translation_key: "active_target" },
+    },
+    devices: { d1: { name: "Boiler", model: "BelliSlimo" } },
+  };
+  const e = deviceEntities(hass, "water_heater.b_heater");
+  assert.equal(e.target_showers, "number.b_target_showers");
+  assert.equal(e.hot_water, "sensor.b_hot_water");
+  assert.equal(e.active_target, "sensor.b_active_target");
+});
+
+test("shower program days go to set_schedule with null for anti-freeze hours", () => {
+  const empty = Array(24).fill(null);
+  const orig = { 1: Object.fromEntries(DAYS.map((d) => [d, empty.slice()])) };
+  const edit = JSON.parse(JSON.stringify(orig));
+  edit[1].mo[0] = 1; edit[1].mo[8] = 2; edit[1].mo[16] = 3;
+  const mo = empty.slice(); mo[0] = 1; mo[8] = 2; mo[16] = 3;
+  assert.deepEqual(scheduleCalls(orig, edit), [{ program: 1, days: ["mo"], temperatures: mo }]);
 });
