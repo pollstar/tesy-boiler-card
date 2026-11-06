@@ -92,6 +92,11 @@ The card is a single file with no dependencies or build step. The pure helpers h
 node --test tests/card.test.mjs
 ```
 
+## Contributors
+
+- [Pavel Starovoitov](https://github.com/pollstar): author
+- [Rostislav Raykov](https://github.com/RoastSlav): shower models, BelliSlimo and BelliSlimo Lite ([#1](https://github.com/pollstar/tesy-boiler-card/pull/1))
+
 ## License
 
 [PolyForm Noncommercial License 1.0.0](LICENSE.md) — free for personal, hobby,
