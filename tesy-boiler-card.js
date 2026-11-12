@@ -12,7 +12,7 @@
  *   entity: water_heater.boiler_modeco_2_heater
  */
 
-export const CARD_VERSION = "1.1.0";
+export const CARD_VERSION = "1.1.1";
 
 export const DAYS = ["mo", "tu", "we", "th", "fr", "sa", "su"];
 export const MODES = ["performance", "p1", "p2", "p3", "eco", "ec2", "ec3"];
@@ -54,7 +54,7 @@ const STRINGS = {
     power: "Питание", powerOn: "Включено", powerOff: "Выключено",
     schedule: "Расписание", stats: "Статистика", clock: "часы бойлера",
     clockProblem: "Часы бойлера сбиты — расписание сработает не вовремя", sync: "Исправить",
-    setpoint: "Заданная температура", close: "Закрыть",
+    setpoint: "Заданная температура", setpointShowers: "Целевое количество душей", close: "Закрыть",
     programs: "Недельные программы", running: "Сейчас работает",
     gridHint: "Температура на каждый час, по часам бойлера. Нажмите на ячейку, чтобы закрасить её выбранной температурой.",
     nowFrame: "Рамка — текущий час бойлера", brush: "Кисть", step: "15–75 °C, шаг 1",
@@ -87,7 +87,7 @@ const STRINGS = {
     power: "Живлення", powerOn: "Увімкнено", powerOff: "Вимкнено",
     schedule: "Розклад", stats: "Статистика", clock: "годинник бойлера",
     clockProblem: "Годинник бойлера збитий — розклад спрацює не вчасно", sync: "Виправити",
-    setpoint: "Задана температура", close: "Закрити",
+    setpoint: "Задана температура", setpointShowers: "Цільова кількість душів", close: "Закрити",
     programs: "Тижневі програми", running: "Зараз працює",
     gridHint: "Температура на кожну годину, за годинником бойлера. Натисніть на клітинку, щоб зафарбувати її вибраною температурою.",
     nowFrame: "Рамка — поточна година бойлера", brush: "Пензель", step: "15–75 °C, крок 1",
@@ -120,7 +120,7 @@ const STRINGS = {
     power: "Power", powerOn: "On", powerOff: "Off",
     schedule: "Schedule", stats: "Statistics", clock: "heater clock",
     clockProblem: "Heater clock is off — programs will switch at the wrong time", sync: "Fix",
-    setpoint: "Setpoint", close: "Close",
+    setpoint: "Setpoint", setpointShowers: "Target showers", close: "Close",
     programs: "Weekly programs", running: "Running",
     gridHint: "Temperature for every hour, by the heater clock. Tap a cell to paint it with the selected temperature.",
     nowFrame: "Frame — current heater hour", brush: "Brush", step: "15–75 °C, step 1",
@@ -620,8 +620,9 @@ class TesyBoilerCard extends Base {
           <button type="button" class="power ${v.power ? "on" : ""}" aria-pressed="${v.power}" data-action="power"
                   aria-label="${esc(s.power)}: ${esc(v.power ? s.powerOn : s.powerOff)}" title="${esc(s.power)}: ${esc(v.power ? s.powerOn : s.powerOff)}" ${v.available ? "" : "disabled"}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 2v10"></path><path d="M18.4 6.6a9 9 0 1 1-12.8 0"></path></svg></button>
           <div class="dial">
-            <svg viewBox="0 0 280 280" role="slider" tabindex="${hasHandle ? 0 : -1}" aria-label="${esc(s.setpoint)}"
+            <svg viewBox="0 0 280 280" role="slider" tabindex="${hasHandle ? 0 : -1}" aria-label="${esc(scale.showers ? s.setpointShowers : s.setpoint)}"
                  aria-valuemin="${scale.setMin}" aria-valuemax="${scale.setMax}" aria-valuenow="${hasHandle ? setpoint : ""}"
+                 aria-valuetext="${esc(targetText)}"
                  aria-disabled="${hasHandle ? "false" : "true"}" class="${hasHandle ? "drag" : ""}">
               <path d="${arcPath(-135, 135)}" fill="none" stroke-width="22" stroke-linecap="round" style="stroke: var(--t-track)"></path>
               ${v.current !== null ? `<path d="${arcPath(-135, curAngle)}" fill="none" stroke-width="22" stroke-linecap="round" style="stroke: var(--t-heat)"></path>` : ""}
@@ -777,6 +778,8 @@ class TesyBoilerCard extends Base {
 
 const CARD_CSS = `
   ha-card { overflow: hidden; }
+  /* Sizes follow the card's own width, so a narrow dashboard column works too. */
+  ha-card { display: block; container: tesy / inline-size; }
   .wrap { box-sizing: border-box; padding: 20px; display: flex; flex-direction: column; gap: 20px; color: var(--t-text); }
   .head { display: flex; align-items: center; gap: 12px; }
   .badge { width: 40px; height: 40px; border-radius: 12px; background: var(--t-surface-2); color: var(--t-accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -784,15 +787,16 @@ const CARD_CSS = `
   .name { font-size: 17px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sub { font-size: 13px; color: var(--t-muted); }
   .rssi { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--t-muted); }
-  .dial { position: relative; width: min(100%, 350px); aspect-ratio: 1; align-self: center; }
+  .dial { position: relative; width: min(100%, 350px); aspect-ratio: 1; align-self: center; container: dial / inline-size; }
   .dial > svg { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
   .dial > svg.drag { cursor: pointer; }
   .center { position: absolute; left: 0; right: 0; top: 28%; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
-  .cur { font-size: clamp(40px, 13vw, 64px); font-weight: 600; line-height: 1; }
+  .cur { font-size: clamp(30px, 18cqi, 64px); font-weight: 600; line-height: 1; }
   .cur span { font-size: 0.44em; color: var(--t-muted); }
   .cur .unit { display: inline-flex; vertical-align: baseline; margin-left: 0.1em; }
-  .tgt { font-size: clamp(20px, 6vw, 30px); font-weight: 600; color: var(--t-muted); }
-  .pill { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 6px 12px; border-radius: 999px; font-size: 14px; font-weight: 500; }
+  .tgt { font-size: clamp(16px, 8.5cqi, 30px); font-weight: 600; color: var(--t-muted); }
+  .pill { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 6px 12px; border-radius: 999px; font-size: clamp(12px, 4cqi, 14px); font-weight: 500;
+          max-width: 70%; text-align: center; }
   .pill svg { width: 14px; height: 14px; flex-shrink: 0; }
   .pill.ok { background: var(--t-ok-bg); color: var(--t-ok-fg); }
   .pill.warm { background: var(--t-warm-bg); color: var(--t-warm-fg); }
@@ -813,6 +817,17 @@ const CARD_CSS = `
   .warn button { min-height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--t-warm-border); background: transparent; font-weight: 600; }
   .clock { font-size: 12px; color: var(--t-muted); text-align: center; margin-top: -8px; }
   button:disabled { opacity: .5; }
+  @container tesy (max-width: 340px) {
+    .wrap { padding: 14px; gap: 14px; }
+    .name { font-size: 15px; }
+    .rssi { display: none; }
+    .power { width: 40px; height: 40px; }
+    .power svg { width: 18px; height: 18px; }
+    .modes { gap: 6px; }
+    .chip { min-height: 40px; padding: 0 10px; font-size: 13px; border-radius: 10px; }
+    .actions { gap: 6px; }
+    .act { min-height: 48px; border-radius: 12px; }
+  }
 `;
 
 // ---------------------------------------------------------------- dialogs
