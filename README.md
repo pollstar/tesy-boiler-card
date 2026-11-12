@@ -84,6 +84,10 @@ The chart button opens energy and diagnostics.
 - **Wi-Fi** signal in dBm, marked *weak* below −67 dBm.
 - **Module uptime**, **clock** state (heater time and time zone compared with Home Assistant) and **firmware** versions.
 
+## Changes
+
+What changed in each version is in [CHANGELOG.md](CHANGELOG.md) and in the [releases](https://github.com/pollstar/tesy-boiler-card/releases), which HACS shows when updating.
+
 ## Development
 
 The card is a single file with no dependencies or build step. The pure helpers have unit tests:
